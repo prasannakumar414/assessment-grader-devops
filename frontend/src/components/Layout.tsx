@@ -1,16 +1,30 @@
 import { NavLink, Outlet } from "react-router-dom";
 
+import { useSSE } from "../hooks/useSSE";
+import { AllCompleteModal } from "./AllCompleteModal";
+import { StageCompleteModal } from "./StageCompleteModal";
+
 const links = [
   { to: "/", label: "Students" },
+  { to: "/registrations", label: "Registrations" },
   { to: "/add", label: "Add Student" },
 ];
 
 export function Layout() {
+  const { connected, currentEvent, dismissCurrent, registrationVersion } = useSSE();
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-bold">Docker Assessment Grader</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold">DevOps Assessment Grader</h1>
+            {!connected && (
+              <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                Reconnecting...
+              </span>
+            )}
+          </div>
           <nav className="flex gap-3">
             {links.map((link) => (
               <NavLink
@@ -30,8 +44,15 @@ export function Layout() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet />
+        <Outlet context={{ registrationVersion }} />
       </main>
+
+      {currentEvent?.type === "stage_complete" && (
+        <StageCompleteModal event={currentEvent.data} onDismiss={dismissCurrent} />
+      )}
+      {currentEvent?.type === "all_complete" && (
+        <AllCompleteModal event={currentEvent.data} onDismiss={dismissCurrent} />
+      )}
     </div>
   );
 }

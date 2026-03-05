@@ -7,7 +7,8 @@ export function AddStudentPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [rollNo, setRollNo] = useState("");
+  const [githubUsername, setGithubUsername] = useState("");
+  const [dockerHubUsername, setDockerHubUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -16,7 +17,7 @@ export function AddStudentPage() {
     setLoading(true);
     setError("");
     try {
-      await createStudent({ name, email, rollNo });
+      await createStudent({ name, email, githubUsername, dockerHubUsername });
       navigate("/");
     } catch (err) {
       setError("Failed to add student. Please check inputs and try again.");
@@ -31,7 +32,7 @@ export function AddStudentPage() {
       <div className="mb-4">
         <h2 className="text-xl font-semibold">Add Student</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Roll number should match the Docker image name on Docker Hub.
+          Admin-created students are auto-approved.
         </p>
       </div>
 
@@ -60,12 +61,23 @@ export function AddStudentPage() {
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium">Roll No (Docker image)</span>
+          <span className="mb-1 block text-sm font-medium">GitHub Username</span>
           <input
             className="w-full rounded border border-slate-300 px-3 py-2"
-            value={rollNo}
-            onChange={(event) => setRollNo(event.target.value)}
-            placeholder="dockerhub-user/rollno-image"
+            value={githubUsername}
+            onChange={(event) => setGithubUsername(event.target.value)}
+            placeholder="johndoe"
+            required
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Docker Hub Username</span>
+          <input
+            className="w-full rounded border border-slate-300 px-3 py-2"
+            value={dockerHubUsername}
+            onChange={(event) => setDockerHubUsername(event.target.value)}
+            placeholder="johndoe"
             required
           />
         </label>

@@ -11,8 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"docker-workshop-assesment-grader/internal/database"
-	"docker-workshop-assesment-grader/internal/docker"
 	"docker-workshop-assesment-grader/internal/handlers"
+	"docker-workshop-assesment-grader/internal/sse"
 )
 
 //go:embed all:frontend/dist
@@ -24,13 +24,13 @@ func main() {
 		log.Fatalf("database init failed: %v", err)
 	}
 
-	runner, err := docker.NewRunner()
-	if err != nil {
-		log.Fatalf("docker runner init failed: %v", err)
-	}
+	hub := sse.NewHub()
 
 	studentHandler := &handlers.StudentHandler{DB: db}
-	checkHandler := &handlers.CheckHandler{DB: db, Runner: runner}
+	registerHandler := &handlers.RegisterHandler{DB: db, Hub: hub}
+	approvalHandler := &handlers.ApprovalHandler{DB: db}
+	notifyHandler := &handlers.NotifyHandler{DB: db, Hub: hub}
+	eventsHandler := &handlers.EventsHandler{Hub: hub}
 
 	router := gin.Default()
 
@@ -42,8 +42,12 @@ func main() {
 		api.PUT("/students/:id", studentHandler.UpdateStudent)
 		api.DELETE("/students/:id", studentHandler.DeleteStudent)
 
-		api.POST("/run-check", checkHandler.RunCheckAll)
-		api.POST("/run-check/:id", checkHandler.RunCheckByID)
+		api.POST("/register", registerHandler.Register)
+		api.POST("/notify", notifyHandler.Notify)
+		api.GET("/events", eventsHandler.Stream)
+
+		api.POST("/registrations/:id/approve", approvalHandler.ApproveOne)
+		api.POST("/registrations/approve-all", approvalHandler.ApproveAll)
 	}
 
 	registerFrontendRoutes(router)

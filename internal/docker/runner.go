@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,8 +19,8 @@ import (
 )
 
 type Runner struct {
-	Client      *client.Client
-	HTTPClient  *http.Client
+	Client       *client.Client
+	HTTPClient   *http.Client
 	ReadyTimeout time.Duration
 }
 
@@ -35,8 +36,8 @@ func NewRunner() (*Runner, error) {
 	}
 
 	return &Runner{
-		Client:      cli,
-		HTTPClient:  &http.Client{Timeout: 5 * time.Second},
+		Client:       cli,
+		HTTPClient:   &http.Client{Timeout: 5 * time.Second},
 		ReadyTimeout: 30 * time.Second,
 	}, nil
 }
@@ -71,7 +72,10 @@ func (r *Runner) CheckStudent(ctx context.Context, imageName string, expectedEma
 }
 
 func (r *Runner) pullImage(ctx context.Context, imageRef string) error {
-	reader, err := r.Client.ImagePull(ctx, imageRef, image.PullOptions{})
+	options := image.PullOptions{
+		Platform: "linux/" + runtime.GOARCH,
+	}
+	reader, err := r.Client.ImagePull(ctx, imageRef, options)
 	if err != nil {
 		return fmt.Errorf("docker pull failed for %s: %w", imageRef, err)
 	}

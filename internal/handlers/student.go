@@ -17,9 +17,10 @@ type StudentHandler struct {
 }
 
 type studentPayload struct {
-	Name   string `json:"name" binding:"required"`
-	Email  string `json:"email" binding:"required,email"`
-	RollNo string `json:"rollNo" binding:"required"`
+	Name              string `json:"name" binding:"required"`
+	Email             string `json:"email" binding:"required,email"`
+	GitHubUsername    string `json:"githubUsername" binding:"required"`
+	DockerHubUsername string `json:"dockerHubUsername" binding:"required"`
 }
 
 func (h *StudentHandler) CreateStudent(c *gin.Context) {
@@ -30,15 +31,19 @@ func (h *StudentHandler) CreateStudent(c *gin.Context) {
 	}
 
 	student := models.Student{
-		Name:   payload.Name,
-		Email:  strings.ToLower(strings.TrimSpace(payload.Email)),
-		RollNo: strings.TrimSpace(payload.RollNo),
-		Status: models.StatusPending,
+		Name:              strings.TrimSpace(payload.Name),
+		Email:             strings.ToLower(strings.TrimSpace(payload.Email)),
+		GitHubUsername:    strings.TrimSpace(payload.GitHubUsername),
+		DockerHubUsername: strings.TrimSpace(payload.DockerHubUsername),
+		Approved:          true,
+		GitHubStatus:      models.StatusPending,
+		DockerStatus:      models.StatusPending,
+		K8sStatus:         models.StatusPending,
 	}
 
 	if err := h.DB.Create(&student).Error; err != nil {
 		if isUniqueConstraintError(err) {
-			c.JSON(http.StatusConflict, gin.H{"error": "email or rollNo already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create student"})
@@ -49,12 +54,15 @@ func (h *StudentHandler) CreateStudent(c *gin.Context) {
 }
 
 func (h *StudentHandler) ListStudents(c *gin.Context) {
-	statusFilter := c.Query("status")
-
 	var students []models.Student
 	query := h.DB.Order("created_at desc")
-	if statusFilter != "" {
-		query = query.Where("status = ?", statusFilter)
+
+	if status := c.Query("status"); status != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filtering by single status is no longer supported; use approved filter"})
+		return
+	}
+	if approved := c.Query("approved"); approved != "" {
+		query = query.Where("approved = ?", approved == "true")
 	}
 
 	if err := query.Find(&students).Error; err != nil {
@@ -106,16 +114,14 @@ func (h *StudentHandler) UpdateStudent(c *gin.Context) {
 		return
 	}
 
-	student.Name = payload.Name
+	student.Name = strings.TrimSpace(payload.Name)
 	student.Email = strings.ToLower(strings.TrimSpace(payload.Email))
-	student.RollNo = strings.TrimSpace(payload.RollNo)
-	student.Status = models.StatusPending
-	student.ErrorMessage = ""
-	student.LastCheckedAt = nil
+	student.GitHubUsername = strings.TrimSpace(payload.GitHubUsername)
+	student.DockerHubUsername = strings.TrimSpace(payload.DockerHubUsername)
 
 	if err := h.DB.Save(&student).Error; err != nil {
 		if isUniqueConstraintError(err) {
-			c.JSON(http.StatusConflict, gin.H{"error": "email or rollNo already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "email already exists"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update student"})

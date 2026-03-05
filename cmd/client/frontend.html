@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assessment Checker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06); max-width: 480px; width: 100%; padding: 2rem; }
+  h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: .25rem; }
+  .subtitle { font-size: .875rem; color: #64748b; margin-bottom: 1.5rem; }
+  label { display: block; margin-bottom: 1rem; }
+  .label-text { display: block; font-size: .8125rem; font-weight: 600; margin-bottom: .25rem; }
+  input { width: 100%; padding: .5rem .75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .875rem; outline: none; transition: border-color .15s; }
+  input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  .buttons { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.25rem; }
+  button { padding: .625rem 1rem; border: none; border-radius: 6px; font-size: .875rem; font-weight: 600; cursor: pointer; transition: opacity .15s, background .15s; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-register { background: #3b82f6; color: #fff; }
+  .btn-register:hover:not(:disabled) { background: #2563eb; }
+  .btn-github { background: #1e293b; color: #fff; }
+  .btn-github:hover:not(:disabled) { background: #0f172a; }
+  .btn-docker { background: #0891b2; color: #fff; }
+  .btn-docker:hover:not(:disabled) { background: #0e7490; }
+  .result { margin-top: .5rem; padding: .625rem .75rem; border-radius: 6px; font-size: .8125rem; }
+  .result-info { background: #eff6ff; color: #1e40af; }
+  .result-pass { background: #f0fdf4; color: #166534; }
+  .result-fail { background: #fef2f2; color: #991b1b; }
+  .result-warn { background: #fffbeb; color: #92400e; }
+  .badge { display: inline-block; padding: .125rem .5rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; margin-left: .5rem; }
+  .badge-approved { background: #dcfce7; color: #166534; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stage-section { margin-top: .75rem; }
+  .stage-section h3 { font-size: .8125rem; font-weight: 600; color: #64748b; margin-bottom: .25rem; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>DevOps Assessment Checker</h1>
+  <p class="subtitle">Fill in your details and register, then run checks once approved.</p>
+
+  <form id="form" onsubmit="return false">
+    <label>
+      <span class="label-text">Student Name</span>
+      <input id="name" placeholder="John Doe" required>
+    </label>
+    <label>
+      <span class="label-text">GitHub Username</span>
+      <input id="github" placeholder="johndoe" required>
+    </label>
+    <label>
+      <span class="label-text">Docker Hub Username</span>
+      <input id="dockerhub" placeholder="johndoe" required>
+    </label>
+    <label>
+      <span class="label-text">Email</span>
+      <input id="email" type="email" placeholder="john@example.com" required>
+    </label>
+
+    <div class="buttons">
+      <button type="button" class="btn-register" id="btnRegister" onclick="doRegister()">Register</button>
+      <div id="registerResult"></div>
+
+      <div class="stage-section">
+        <h3>Stage 1: GitHub</h3>
+        <button type="button" class="btn-github" id="btnGithub" onclick="doCheck('github')" disabled>Check GitHub</button>
+        <div id="githubResult"></div>
+      </div>
+
+      <div class="stage-section">
+        <h3>Stage 2: Docker</h3>
+        <button type="button" class="btn-docker" id="btnDocker" onclick="doCheck('docker')" disabled>Check Docker</button>
+        <div id="dockerResult"></div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+let approved = false;
+
+function getPayload() {
+  return {
+    name: document.getElementById('name').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    githubUsername: document.getElementById('github').value.trim(),
+    dockerHubUsername: document.getElementById('dockerhub').value.trim(),
+  };
+}
+
+function validate() {
+  const p = getPayload();
+  return p.name && p.email && p.githubUsername && p.dockerHubUsername;
+}
+
+function setResult(id, cls, msg) {
+  const el = document.getElementById(id);
+  el.className = 'result result-' + cls;
+  el.textContent = msg;
+}
+
+function clearResult(id) {
+  document.getElementById(id).className = '';
+  document.getElementById(id).textContent = '';
+}
+
+function setLoading(btnId, loading, label) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading || (btnId !== 'btnRegister' && !approved);
+  btn.innerHTML = loading ? '<span class="spinner"></span>' + label : label;
+}
+
+function updateCheckButtons() {
+  document.getElementById('btnGithub').disabled = !approved;
+  document.getElementById('btnDocker').disabled = !approved;
+}
+
+async function doRegister() {
+  if (!validate()) { setResult('registerResult', 'warn', 'Please fill in all fields.'); return; }
+  setLoading('btnRegister', true, 'Registering...');
+  clearResult('registerResult');
+  try {
+    const resp = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getPayload()),
+    });
+    const data = await resp.json();
+    if (data.error) { setResult('registerResult', 'fail', data.error); return; }
+    approved = !!data.approved;
+    updateCheckButtons();
+    if (approved) {
+      setResult('registerResult', 'pass', 'Approved! You can now run checks.');
+    } else {
+      setResult('registerResult', 'warn', 'Registered. Waiting for admin approval — click Register again to check status.');
+    }
+  } catch (e) {
+    setResult('registerResult', 'fail', 'Failed to connect to server.');
+  } finally {
+    setLoading('btnRegister', false, 'Register');
+  }
+}
+
+async function doCheck(stage) {
+  if (!validate()) return;
+  const btnId = stage === 'github' ? 'btnGithub' : 'btnDocker';
+  const resultId = stage + 'Result';
+  const label = stage === 'github' ? 'Check GitHub' : 'Check Docker';
+
+  setLoading(btnId, true, 'Checking...');
+  clearResult(resultId);
+  try {
+    const resp = await fetch('/api/check/' + stage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(getPayload()),
+    });
+    const data = await resp.json();
+    if (data.error) { setResult(resultId, 'fail', data.error); return; }
+    if (data.status === 'not_approved') {
+      approved = false;
+      updateCheckButtons();
+      setResult(resultId, 'warn', 'Not yet approved. Please wait for admin approval.');
+      return;
+    }
+    if (data.passed) {
+      setResult(resultId, 'pass', 'Passed!');
+    } else {
+      setResult(resultId, 'fail', 'Failed: ' + (data.errorMessage || 'unknown error'));
+    }
+  } catch (e) {
+    setResult(resultId, 'fail', 'Failed to connect.');
+  } finally {
+    setLoading(btnId, false, label);
+  }
+}
+</script>
+</body>
+</html>

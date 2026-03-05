@@ -1,11 +1,6 @@
 import axios from "axios";
 
-import type {
-  CreateStudentPayload,
-  RunCheckResult,
-  Student,
-  StudentStatus,
-} from "../types/student";
+import type { CreateStudentPayload, Student } from "../types/student";
 
 const api = axios.create({
   baseURL: "/api",
@@ -16,10 +11,12 @@ export async function createStudent(payload: CreateStudentPayload): Promise<Stud
   return response.data;
 }
 
-export async function listStudents(status?: StudentStatus): Promise<Student[]> {
-  const response = await api.get<Student[]>("/students", {
-    params: status ? { status } : undefined,
-  });
+export async function listStudents(approved?: boolean): Promise<Student[]> {
+  const params: Record<string, string> = {};
+  if (approved !== undefined) {
+    params.approved = String(approved);
+  }
+  const response = await api.get<Student[]>("/students", { params });
   return response.data;
 }
 
@@ -36,14 +33,16 @@ export async function updateStudent(
   return response.data;
 }
 
-export async function runCheckAll(): Promise<RunCheckResult[]> {
-  const response = await api.post<{ count: number; results: RunCheckResult[] }>(
-    "/run-check"
-  );
-  return response.data.results;
+export async function deleteStudent(id: number): Promise<void> {
+  await api.delete(`/students/${id}`);
 }
 
-export async function runCheckById(id: number): Promise<RunCheckResult> {
-  const response = await api.post<RunCheckResult>(`/run-check/${id}`);
+export async function approveStudent(id: number): Promise<Student> {
+  const response = await api.post<Student>(`/registrations/${id}/approve`);
+  return response.data;
+}
+
+export async function approveAll(): Promise<{ approved: number }> {
+  const response = await api.post<{ approved: number }>("/registrations/approve-all");
   return response.data;
 }

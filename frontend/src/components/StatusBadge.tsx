@@ -9,7 +9,7 @@ const statusStyles: Record<StudentStatus, string> = {
 export function StatusBadge({ status }: { status: StudentStatus }) {
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusStyles[status]}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusStyles[status]}`}
     >
       {status}
     </span>
