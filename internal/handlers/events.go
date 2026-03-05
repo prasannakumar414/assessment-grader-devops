@@ -19,6 +19,10 @@ func (h *EventsHandler) Stream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
+	// Flush headers + initial comment so EventSource.onopen fires immediately
+	c.Writer.WriteString(": connected\n\n")
+	c.Writer.Flush()
+
 	events, unsubscribe := h.Hub.Subscribe()
 	defer unsubscribe()
 

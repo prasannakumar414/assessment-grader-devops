@@ -37,7 +37,7 @@ func main() {
 	cfg := loadConfig()
 	log.Printf("client starting — server=%s image=%s repo=%s", cfg.ServerURL, cfg.ImageName, cfg.GithubRepo)
 
-	runner, err := docker.NewRunner()
+	runner, err := docker.NewRunner(os.Getenv("DOCKER_VERIFY_HOST"))
 	if err != nil {
 		log.Fatalf("docker runner init failed: %v", err)
 	}

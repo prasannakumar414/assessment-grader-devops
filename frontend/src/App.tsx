@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes, useOutletContext } from "react-router-dom";
 
+import { AuthGuard } from "./components/AuthGuard";
 import { Layout } from "./components/Layout";
 import { AddStudentPage } from "./pages/AddStudent";
+import { LoginPage } from "./pages/Login";
 import { RegistrationRequestsPage } from "./pages/RegistrationRequests";
 import { StudentListPage } from "./pages/StudentList";
 import { StudentProfilePage } from "./pages/StudentProfile";
@@ -14,7 +16,15 @@ function RegistrationRequestsWrapper() {
 function App() {
   return (
     <Routes>
-      <Route element={<Layout />} path="/">
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <AuthGuard>
+            <Layout />
+          </AuthGuard>
+        }
+        path="/"
+      >
         <Route element={<StudentListPage />} index />
         <Route element={<RegistrationRequestsWrapper />} path="registrations" />
         <Route element={<AddStudentPage />} path="add" />

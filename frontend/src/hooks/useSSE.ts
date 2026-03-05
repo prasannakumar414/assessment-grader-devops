@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getToken } from "../auth";
 import type { AllCompleteEvent, StageCompleteEvent } from "../types/student";
 
 export type CelebrationEvent =
@@ -42,7 +43,9 @@ export function useSSE() {
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
     function connect() {
-      es = new EventSource("/api/events");
+      const token = getToken();
+      const url = token ? `/api/events?token=${encodeURIComponent(token)}` : "/api/events";
+      es = new EventSource(url);
 
       es.onopen = () => setConnected(true);
       es.onerror = () => {

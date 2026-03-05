@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"runtime"
 	"strings"
@@ -22,6 +23,7 @@ type Runner struct {
 	Client       *client.Client
 	HTTPClient   *http.Client
 	ReadyTimeout time.Duration
+	VerifyHost   string
 }
 
 type CheckResult struct {
@@ -29,16 +31,21 @@ type CheckResult struct {
 	ErrorMessage string
 }
 
-func NewRunner() (*Runner, error) {
+func NewRunner(verifyHost string) (*Runner, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
+	}
+
+	if verifyHost == "" {
+		verifyHost = "127.0.0.1"
 	}
 
 	return &Runner{
 		Client:       cli,
 		HTTPClient:   &http.Client{Timeout: 5 * time.Second},
 		ReadyTimeout: 30 * time.Second,
+		VerifyHost:   verifyHost,
 	}, nil
 }
 
@@ -49,14 +56,16 @@ func (r *Runner) CheckStudent(ctx context.Context, imageName string, expectedEma
 		return CheckResult{Passed: false, ErrorMessage: err.Error()}
 	}
 
-	containerID, hostPort, err := r.startContainer(ctx, imageRef)
+	containerID, verifyURL, err := r.startContainer(ctx, imageRef)
 	if err != nil {
 		return CheckResult{Passed: false, ErrorMessage: err.Error()}
 	}
 
 	defer r.cleanupContainer(context.Background(), containerID)
 
-	passed, err := r.verifyContainer(ctx, hostPort, expectedEmail)
+	log.Printf("verifying student container at %s", verifyURL)
+
+	passed, err := r.verifyContainer(ctx, verifyURL, expectedEmail)
 	if err != nil {
 		return CheckResult{Passed: false, ErrorMessage: err.Error()}
 	}
@@ -85,6 +94,11 @@ func (r *Runner) pullImage(ctx context.Context, imageRef string) error {
 	return nil
 }
 
+// startContainer creates and starts the student container, returning its ID
+// and the URL to use for verification.
+// When VerifyHost is "container", it uses the container's bridge network IP
+// directly (reliable for container-to-container communication).
+// Otherwise, it uses host port mapping with the configured VerifyHost.
 func (r *Runner) startContainer(ctx context.Context, imageRef string) (string, string, error) {
 	containerPort, err := nat.NewPort("tcp", "8080")
 	if err != nil {
@@ -102,12 +116,11 @@ func (r *Runner) startContainer(ctx context.Context, imageRef string) (string, s
 		PortBindings: nat.PortMap{
 			containerPort: []nat.PortBinding{
 				{
-					HostIP:   "127.0.0.1",
+					HostIP:   "0.0.0.0",
 					HostPort: "0",
 				},
 			},
 		},
-		AutoRemove: true,
 	}
 
 	resp, err := r.Client.ContainerCreate(ctx, config, hostConfig, &network.NetworkingConfig{}, nil, "")
@@ -119,12 +132,46 @@ func (r *Runner) startContainer(ctx context.Context, imageRef string) (string, s
 		return "", "", fmt.Errorf("start container: %w", err)
 	}
 
-	hostPort, err := r.resolveHostPort(ctx, resp.ID, containerPort)
-	if err != nil {
-		return "", "", err
+	if r.VerifyHost == "container" {
+		ip, ipErr := r.resolveContainerIP(ctx, resp.ID)
+		if ipErr != nil {
+			return "", "", ipErr
+		}
+		verifyURL := fmt.Sprintf("http://%s:8080/api/info", ip)
+		return resp.ID, verifyURL, nil
 	}
 
-	return resp.ID, hostPort, nil
+	hostPort, portErr := r.resolveHostPort(ctx, resp.ID, containerPort)
+	if portErr != nil {
+		return "", "", portErr
+	}
+	verifyURL := fmt.Sprintf("http://%s:%s/api/info", r.VerifyHost, hostPort)
+	return resp.ID, verifyURL, nil
+}
+
+func (r *Runner) resolveContainerIP(ctx context.Context, containerID string) (string, error) {
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		inspection, err := r.Client.ContainerInspect(ctx, containerID)
+		if err != nil {
+			return "", fmt.Errorf("inspect container: %w", err)
+		}
+
+		if ip := inspection.NetworkSettings.IPAddress; ip != "" {
+			return ip, nil
+		}
+
+		// Also check named networks
+		for _, net := range inspection.NetworkSettings.Networks {
+			if net.IPAddress != "" {
+				return net.IPAddress, nil
+			}
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	return "", errors.New("timed out resolving container IP address")
 }
 
 func (r *Runner) resolveHostPort(ctx context.Context, containerID string, containerPort nat.Port) (string, error) {
@@ -146,9 +193,8 @@ func (r *Runner) resolveHostPort(ctx context.Context, containerID string, contai
 	return "", errors.New("timed out resolving mapped host port")
 }
 
-func (r *Runner) verifyContainer(ctx context.Context, hostPort string, expectedEmail string) (bool, error) {
+func (r *Runner) verifyContainer(ctx context.Context, url string, expectedEmail string) (bool, error) {
 	deadline := time.Now().Add(r.ReadyTimeout)
-	url := fmt.Sprintf("http://127.0.0.1:%s/api/info", hostPort)
 
 	for time.Now().Before(deadline) {
 		select {
@@ -181,7 +227,7 @@ func (r *Runner) verifyContainer(ctx context.Context, hostPort string, expectedE
 		return false, nil
 	}
 
-	return false, errors.New("timed out waiting for /api/info response from student container")
+	return false, fmt.Errorf("timed out waiting for response from %s", url)
 }
 
 func (r *Runner) cleanupContainer(ctx context.Context, containerID string) {

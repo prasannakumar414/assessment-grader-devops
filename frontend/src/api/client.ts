@@ -1,12 +1,45 @@
 import axios from "axios";
 
+import { clearToken, getToken } from "../auth";
 import type { CreateStudentPayload, Student } from "../types/student";
 
 const api = axios.create({
   baseURL: "/api",
 });
 
-export async function createStudent(payload: CreateStudentPayload): Promise<Student> {
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      clearToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
+export async function login(
+  username: string,
+  password: string
+): Promise<string> {
+  const response = await api.post<{ token: string }>("/auth/login", {
+    username,
+    password,
+  });
+  return response.data.token;
+}
+
+export async function createStudent(
+  payload: CreateStudentPayload
+): Promise<Student> {
   const response = await api.post<Student>("/students", payload);
   return response.data;
 }
@@ -43,6 +76,8 @@ export async function approveStudent(id: number): Promise<Student> {
 }
 
 export async function approveAll(): Promise<{ approved: number }> {
-  const response = await api.post<{ approved: number }>("/registrations/approve-all");
+  const response = await api.post<{ approved: number }>(
+    "/registrations/approve-all"
+  );
   return response.data;
 }

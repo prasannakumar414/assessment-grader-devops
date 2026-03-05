@@ -8,5 +8,6 @@ RUN CGO_ENABLED=0 go build -o /client ./cmd/client
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /client /usr/local/bin/client
+ENV DOCKER_VERIFY_HOST=container
 EXPOSE 3000
 ENTRYPOINT ["client"]

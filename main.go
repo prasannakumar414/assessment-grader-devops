@@ -10,8 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"docker-workshop-assesment-grader/internal/auth"
 	"docker-workshop-assesment-grader/internal/database"
 	"docker-workshop-assesment-grader/internal/handlers"
+	"docker-workshop-assesment-grader/internal/middleware"
 	"docker-workshop-assesment-grader/internal/sse"
 )
 
@@ -24,8 +26,24 @@ func main() {
 		log.Fatalf("database init failed: %v", err)
 	}
 
+	adminUser := os.Getenv("ADMIN_USER")
+	if adminUser == "" {
+		adminUser = "admin"
+	}
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		adminPassword = "admin"
+		log.Println("WARNING: using default admin credentials (admin/admin). Set ADMIN_USER and ADMIN_PASSWORD env vars for production.")
+	}
+
+	sessions := auth.NewSessionStore()
 	hub := sse.NewHub()
 
+	authHandler := &handlers.AuthHandler{
+		Username: adminUser,
+		Password: adminPassword,
+		Sessions: sessions,
+	}
 	studentHandler := &handlers.StudentHandler{DB: db}
 	registerHandler := &handlers.RegisterHandler{DB: db, Hub: hub}
 	approvalHandler := &handlers.ApprovalHandler{DB: db}
@@ -36,18 +54,24 @@ func main() {
 
 	api := router.Group("/api")
 	{
-		api.POST("/students", studentHandler.CreateStudent)
-		api.GET("/students", studentHandler.ListStudents)
-		api.GET("/students/:id", studentHandler.GetStudent)
-		api.PUT("/students/:id", studentHandler.UpdateStudent)
-		api.DELETE("/students/:id", studentHandler.DeleteStudent)
-
+		api.POST("/auth/login", authHandler.Login)
 		api.POST("/register", registerHandler.Register)
 		api.POST("/notify", notifyHandler.Notify)
-		api.GET("/events", eventsHandler.Stream)
+	}
 
-		api.POST("/registrations/:id/approve", approvalHandler.ApproveOne)
-		api.POST("/registrations/approve-all", approvalHandler.ApproveAll)
+	admin := api.Group("")
+	admin.Use(middleware.RequireAuth(sessions))
+	{
+		admin.POST("/students", studentHandler.CreateStudent)
+		admin.GET("/students", studentHandler.ListStudents)
+		admin.GET("/students/:id", studentHandler.GetStudent)
+		admin.PUT("/students/:id", studentHandler.UpdateStudent)
+		admin.DELETE("/students/:id", studentHandler.DeleteStudent)
+
+		admin.GET("/events", eventsHandler.Stream)
+
+		admin.POST("/registrations/:id/approve", approvalHandler.ApproveOne)
+		admin.POST("/registrations/approve-all", approvalHandler.ApproveAll)
 	}
 
 	registerFrontendRoutes(router)

@@ -14,7 +14,7 @@ A two-component system for running and grading multi-stage DevOps workshop asses
 │  │                        │  │     │  │  - POST /api/register   │  │
 │  │  HTML form + checks    │  │     │  │  - POST /api/notify     │  │
 │  │  - GitHub API check    │  │     │  │  - GET /api/events (SSE)│  │
-│  │  - Docker check        │  │     │  │  - Approval endpoints   │  │
+│  │  - Docker check        │  │     │  │  - Session Auth         │  │
 │  └──────────┬─────────────┘  │     │  └────────────┬───────────┘  │
 │             │                │     │               │              │
 │  ┌──────────▼─────────────┐  │     │  ┌────────────▼───────────┐  │
@@ -45,7 +45,7 @@ Each stage is tracked independently per student. The admin dashboard shows per-s
 2. Server creates the student with `approved: false`
 3. Admin sees the request on the **Registration Requests** page (updated in real time via SSE)
 4. Admin clicks **Approve** (or **Approve All**)
-5. Student can now run checks — the client verifies approval before each check
+5. Student can now run checks -- the client verifies approval before each check
 
 ## Real-Time Celebrations
 
@@ -54,6 +54,33 @@ When a student passes a stage, the admin dashboard shows a celebration modal:
 - **All stages complete**: full-screen confetti celebration
 
 Popup dismiss times are configurable in `frontend/src/config.ts`. Multiple events queue up and display sequentially.
+
+## Authentication
+
+The admin dashboard and all admin API routes are protected with session-based authentication.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_USER` | `admin` | Admin login username |
+| `ADMIN_PASSWORD` | `admin` | Admin login password |
+
+**Important**: Change the default credentials before deploying. The server prints a warning at startup if default credentials are in use.
+
+### How It Works
+
+1. Admin navigates to the dashboard and is redirected to the login page
+2. After entering username/password, a session token is issued and stored in the browser
+3. All subsequent API requests include the token in the `Authorization: Bearer` header
+4. SSE connections pass the token as a query parameter (`?token=...`) since `EventSource` cannot set custom headers
+5. Sessions persist for the lifetime of the server process (restarting the server invalidates all sessions)
+
+### Unprotected Routes
+
+The following routes remain open for the client app and K8s operator:
+- `POST /api/register` -- client registration
+- `POST /api/notify` -- stage result notification
 
 ---
 
@@ -64,6 +91,7 @@ Popup dismiss times are configurable in `frontend/src/config.ts`. Multiple event
 - Go + Gin + GORM + SQLite
 - React + Vite + Tailwind CSS (embedded in the Go binary)
 - Server-Sent Events for real-time updates
+- Session-based authentication
 
 ### Prerequisites
 
@@ -72,25 +100,26 @@ Popup dismiss times are configurable in `frontend/src/config.ts`. Multiple event
 
 ### API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/students` | Create student (admin, auto-approved) |
-| `GET` | `/api/students` | List students (`?approved=true/false`) |
-| `GET` | `/api/students/:id` | Get student |
-| `PUT` | `/api/students/:id` | Update student |
-| `DELETE` | `/api/students/:id` | Delete student |
-| `POST` | `/api/register` | Client registration (creates unapproved student) |
-| `POST` | `/api/notify` | Report stage result (`stage`, `email`, `passed`, `errorMessage`) |
-| `GET` | `/api/events` | SSE stream (`new_registration`, `stage_complete`, `all_complete`) |
-| `POST` | `/api/registrations/:id/approve` | Approve one student |
-| `POST` | `/api/registrations/approve-all` | Approve all pending students |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/auth/login` | No | Login (returns session token) |
+| `POST` | `/api/register` | No | Client registration (creates unapproved student) |
+| `POST` | `/api/notify` | No | Report stage result |
+| `POST` | `/api/students` | Session | Create student (admin, auto-approved) |
+| `GET` | `/api/students` | Session | List students (`?approved=true/false`) |
+| `GET` | `/api/students/:id` | Session | Get student |
+| `PUT` | `/api/students/:id` | Session | Update student |
+| `DELETE` | `/api/students/:id` | Session | Delete student |
+| `GET` | `/api/events` | Session | SSE stream (token via `?token=` query param) |
+| `POST` | `/api/registrations/:id/approve` | Session | Approve one student |
+| `POST` | `/api/registrations/approve-all` | Session | Approve all pending students |
 
 ### Development
 
 Run the backend:
 
 ```bash
-go run .
+ADMIN_USER=admin ADMIN_PASSWORD=secret go run .
 ```
 
 Backend runs on `http://localhost:8080`.
@@ -109,7 +138,7 @@ Frontend runs on `http://localhost:5173` and proxies `/api` to the backend.
 
 ```bash
 cd frontend && npm install && npm run build && cd ..
-go run .
+ADMIN_USER=admin ADMIN_PASSWORD=strongpassword go run .
 ```
 
 The Go server embeds `frontend/dist` and serves everything from a single binary.
@@ -139,10 +168,13 @@ Then open `http://localhost:3000` in a browser.
 | `SERVER_URL` | `server_url` | Admin server base URL |
 | `IMAGE_NAME` | `image_name` | Docker image name suffix (e.g., `workshop-app`) |
 | `GITHUB_REPO` | `github_repo` | GitHub repo name to check for `main.go` |
-| `PORT` | — | Client UI port (default: `3000`) |
-| `CONFIG_PATH` | — | Path to config.json (default: `./config.json`) |
+| `PORT` | -- | Client UI port (default: `3000`) |
+| `CONFIG_PATH` | -- | Path to config.json (default: `./config.json`) |
+| `DOCKER_VERIFY_HOST` | -- | How to reach student containers: `container` (use bridge network IP), `127.0.0.1` (host port mapping), or any hostname |
 
 Environment variables take priority. Missing values fall back to `config.json`.
+
+`DOCKER_VERIFY_HOST` is set to `container` inside the client Docker image, which uses the student container's bridge network IP directly -- the most reliable approach for container-to-container communication. When running natively (not in Docker), it defaults to `127.0.0.1` and uses host port mapping.
 
 ### Building the Docker Image
 
@@ -168,12 +200,15 @@ go run ./cmd/client
 ├── Dockerfile.client               # Client Docker image build
 ├── go.mod / go.sum
 ├── internal/
+│   ├── auth/jwt.go                 # Session token store
 │   ├── database/db.go              # SQLite + GORM setup
 │   ├── docker/runner.go            # Docker image pull/run/verify
 │   ├── github/checker.go           # GitHub API file check
+│   ├── middleware/auth.go          # Session auth middleware for Gin
 │   ├── sse/hub.go                  # SSE broadcast hub
 │   ├── models/student.go           # Student model (per-stage status)
 │   └── handlers/
+│       ├── auth.go                 # Login endpoint
 │       ├── student.go              # Student CRUD
 │       ├── register.go             # Client registration
 │       ├── approval.go             # Admin approval
@@ -184,15 +219,18 @@ go run ./cmd/client
 │   └── frontend.html               # Client UI (embedded)
 └── frontend/                       # Admin React app
     ├── src/
-    │   ├── api/client.ts
+    │   ├── auth.ts                 # Token storage helpers
+    │   ├── api/client.ts           # Axios client with auth interceptors
     │   ├── config.ts               # Popup dismiss times
     │   ├── hooks/useSSE.ts
     │   ├── components/
-    │   │   ├── Layout.tsx
+    │   │   ├── AuthGuard.tsx       # Route guard (redirects to /login)
+    │   │   ├── Layout.tsx          # App shell with logout button
     │   │   ├── StatusBadge.tsx
     │   │   ├── StageCompleteModal.tsx
     │   │   └── AllCompleteModal.tsx
     │   ├── pages/
+    │   │   ├── Login.tsx           # Login page
     │   │   ├── StudentList.tsx
     │   │   ├── AddStudent.tsx
     │   │   ├── StudentProfile.tsx

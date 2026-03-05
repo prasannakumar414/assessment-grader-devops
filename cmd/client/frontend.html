@@ -14,11 +14,14 @@
   .label-text { display: block; font-size: .8125rem; font-weight: 600; margin-bottom: .25rem; }
   input { width: 100%; padding: .5rem .75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .875rem; outline: none; transition: border-color .15s; }
   input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  input:disabled { background: #f1f5f9; color: #64748b; cursor: not-allowed; }
   .buttons { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.25rem; }
   button { padding: .625rem 1rem; border: none; border-radius: 6px; font-size: .875rem; font-weight: 600; cursor: pointer; transition: opacity .15s, background .15s; }
   button:disabled { opacity: .55; cursor: not-allowed; }
   .btn-register { background: #3b82f6; color: #fff; }
   .btn-register:hover:not(:disabled) { background: #2563eb; }
+  .btn-edit { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+  .btn-edit:hover:not(:disabled) { background: #e2e8f0; }
   .btn-github { background: #1e293b; color: #fff; }
   .btn-github:hover:not(:disabled) { background: #0f172a; }
   .btn-docker { background: #0891b2; color: #fff; }
@@ -35,6 +38,8 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .stage-section { margin-top: .75rem; }
   .stage-section h3 { font-size: .8125rem; font-weight: 600; color: #64748b; margin-bottom: .25rem; }
+  .reg-row { display: flex; gap: .5rem; }
+  .reg-row button { flex: 1; }
 </style>
 </head>
 <body>
@@ -61,7 +66,10 @@
     </label>
 
     <div class="buttons">
-      <button type="button" class="btn-register" id="btnRegister" onclick="doRegister()">Register</button>
+      <div class="reg-row">
+        <button type="button" class="btn-register" id="btnRegister" onclick="doRegister()">Register</button>
+        <button type="button" class="btn-edit" id="btnEdit" onclick="doEdit()" style="display:none">Edit Details</button>
+      </div>
       <div id="registerResult"></div>
 
       <div class="stage-section">
@@ -80,7 +88,35 @@
 </div>
 
 <script>
+const STORAGE_KEY = 'grader_student';
 let approved = false;
+let registered = false;
+
+function saveState() {
+  const data = {
+    name: document.getElementById('name').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    githubUsername: document.getElementById('github').value.trim(),
+    dockerHubUsername: document.getElementById('dockerhub').value.trim(),
+    registered: registered,
+    approved: approved,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.name) document.getElementById('name').value = data.name;
+    if (data.email) document.getElementById('email').value = data.email;
+    if (data.githubUsername) document.getElementById('github').value = data.githubUsername;
+    if (data.dockerHubUsername) document.getElementById('dockerhub').value = data.dockerHubUsername;
+    registered = !!data.registered;
+    approved = !!data.approved;
+  } catch {}
+}
 
 function getPayload() {
   return {
@@ -113,9 +149,43 @@ function setLoading(btnId, loading, label) {
   btn.innerHTML = loading ? '<span class="spinner"></span>' + label : label;
 }
 
-function updateCheckButtons() {
+function lockFields() {
+  ['name', 'github', 'dockerhub', 'email'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+  document.getElementById('btnEdit').style.display = '';
+}
+
+function unlockFields() {
+  ['name', 'github', 'dockerhub', 'email'].forEach(id => {
+    document.getElementById(id).disabled = false;
+  });
+  document.getElementById('btnEdit').style.display = 'none';
+}
+
+function updateUI() {
   document.getElementById('btnGithub').disabled = !approved;
   document.getElementById('btnDocker').disabled = !approved;
+
+  if (registered) {
+    lockFields();
+    if (approved) {
+      setResult('registerResult', 'pass', 'Approved! You can now run checks.');
+    } else {
+      setResult('registerResult', 'warn', 'Registered. Waiting for admin approval \u2014 click Register to refresh status.');
+    }
+  }
+}
+
+function doEdit() {
+  unlockFields();
+  registered = false;
+  approved = false;
+  saveState();
+  clearResult('registerResult');
+  document.getElementById('btnGithub').disabled = true;
+  document.getElementById('btnDocker').disabled = true;
+  document.getElementById('name').focus();
 }
 
 async function doRegister() {
@@ -130,13 +200,10 @@ async function doRegister() {
     });
     const data = await resp.json();
     if (data.error) { setResult('registerResult', 'fail', data.error); return; }
+    registered = true;
     approved = !!data.approved;
-    updateCheckButtons();
-    if (approved) {
-      setResult('registerResult', 'pass', 'Approved! You can now run checks.');
-    } else {
-      setResult('registerResult', 'warn', 'Registered. Waiting for admin approval — click Register again to check status.');
-    }
+    saveState();
+    updateUI();
   } catch (e) {
     setResult('registerResult', 'fail', 'Failed to connect to server.');
   } finally {
@@ -162,7 +229,8 @@ async function doCheck(stage) {
     if (data.error) { setResult(resultId, 'fail', data.error); return; }
     if (data.status === 'not_approved') {
       approved = false;
-      updateCheckButtons();
+      saveState();
+      updateUI();
       setResult(resultId, 'warn', 'Not yet approved. Please wait for admin approval.');
       return;
     }
@@ -177,6 +245,9 @@ async function doCheck(stage) {
     setLoading(btnId, false, label);
   }
 }
+
+loadState();
+updateUI();
 </script>
 </body>
 </html>

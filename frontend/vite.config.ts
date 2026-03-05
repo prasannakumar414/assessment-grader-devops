@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      "/api/events": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        timeout: 0,
+      },
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
