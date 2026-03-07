@@ -17,7 +17,9 @@ export function useSSE() {
   const showNext = useCallback(() => {
     if (queueRef.current.length > 0) {
       showingRef.current = true;
-      setCurrentEvent(queueRef.current.shift()!);
+      const next = queueRef.current.shift()!;
+      console.log("[SSE] showing event:", next.type, next.data);
+      setCurrentEvent(next);
     } else {
       showingRef.current = false;
       setCurrentEvent(null);
@@ -26,6 +28,7 @@ export function useSSE() {
 
   const enqueue = useCallback(
     (evt: CelebrationEvent) => {
+      console.log("[SSE] enqueue:", evt.type, evt.data);
       queueRef.current.push(evt);
       if (!showingRef.current) {
         showNext();
@@ -47,24 +50,39 @@ export function useSSE() {
       const url = token ? `/api/events?token=${encodeURIComponent(token)}` : "/api/events";
       es = new EventSource(url);
 
-      es.onopen = () => setConnected(true);
+      es.onopen = () => {
+        console.log("[SSE] connected");
+        setConnected(true);
+      };
       es.onerror = () => {
+        console.log("[SSE] error, reconnecting in 3s...");
         setConnected(false);
         es?.close();
         reconnectTimer = setTimeout(connect, 3000);
       };
 
       es.addEventListener("stage_complete", (e) => {
-        const data: StageCompleteEvent = JSON.parse(e.data);
-        enqueue({ type: "stage_complete", data });
+        console.log("[SSE] raw stage_complete:", e.data);
+        try {
+          const data: StageCompleteEvent = JSON.parse(e.data);
+          enqueue({ type: "stage_complete", data });
+        } catch (err) {
+          console.error("[SSE] failed to parse stage_complete:", err, e.data);
+        }
       });
 
       es.addEventListener("all_complete", (e) => {
-        const data: AllCompleteEvent = JSON.parse(e.data);
-        enqueue({ type: "all_complete", data });
+        console.log("[SSE] raw all_complete:", e.data);
+        try {
+          const data: AllCompleteEvent = JSON.parse(e.data);
+          enqueue({ type: "all_complete", data });
+        } catch (err) {
+          console.error("[SSE] failed to parse all_complete:", err, e.data);
+        }
       });
 
-      es.addEventListener("new_registration", () => {
+      es.addEventListener("new_registration", (e) => {
+        console.log("[SSE] new_registration:", e.data);
         setRegistrationVersion((v) => v + 1);
       });
     }
