@@ -8,8 +8,18 @@ import { RegistrationRequestsPage } from "./pages/RegistrationRequests";
 import { StudentListPage } from "./pages/StudentList";
 import { StudentProfilePage } from "./pages/StudentProfile";
 
+interface OutletCtx {
+  registrationVersion: number;
+  stageVersion: number;
+}
+
+function StudentListWrapper() {
+  const { stageVersion } = useOutletContext<OutletCtx>();
+  return <StudentListPage stageVersion={stageVersion} />;
+}
+
 function RegistrationRequestsWrapper() {
-  const { registrationVersion } = useOutletContext<{ registrationVersion: number }>();
+  const { registrationVersion } = useOutletContext<OutletCtx>();
   return <RegistrationRequestsPage registrationVersion={registrationVersion} />;
 }
 
@@ -25,7 +35,7 @@ function App() {
         }
         path="/"
       >
-        <Route element={<StudentListPage />} index />
+        <Route element={<StudentListWrapper />} index />
         <Route element={<RegistrationRequestsWrapper />} path="registrations" />
         <Route element={<AddStudentPage />} path="add" />
         <Route element={<StudentProfilePage />} path="students/:id" />

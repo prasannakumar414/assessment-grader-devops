@@ -10,6 +10,7 @@ export type CelebrationEvent =
 export function useSSE() {
   const [connected, setConnected] = useState(false);
   const [registrationVersion, setRegistrationVersion] = useState(0);
+  const [stageVersion, setStageVersion] = useState(0);
   const [currentEvent, setCurrentEvent] = useState<CelebrationEvent | null>(null);
   const queueRef = useRef<CelebrationEvent[]>([]);
   const showingRef = useRef(false);
@@ -66,6 +67,7 @@ export function useSSE() {
         try {
           const data: StageCompleteEvent = JSON.parse(e.data);
           enqueue({ type: "stage_complete", data });
+          setStageVersion((v) => v + 1);
         } catch (err) {
           console.error("[SSE] failed to parse stage_complete:", err, e.data);
         }
@@ -76,6 +78,7 @@ export function useSSE() {
         try {
           const data: AllCompleteEvent = JSON.parse(e.data);
           enqueue({ type: "all_complete", data });
+          setStageVersion((v) => v + 1);
         } catch (err) {
           console.error("[SSE] failed to parse all_complete:", err, e.data);
         }
@@ -95,5 +98,5 @@ export function useSSE() {
     };
   }, [enqueue]);
 
-  return { connected, currentEvent, dismissCurrent, registrationVersion };
+  return { connected, currentEvent, dismissCurrent, registrationVersion, stageVersion };
 }

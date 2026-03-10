@@ -61,6 +61,10 @@
       <input id="dockerhub" placeholder="johndoe" required>
     </label>
     <label>
+      <span class="label-text">GitHub Repo Name</span>
+      <input id="repo" placeholder="devops-workshop" required>
+    </label>
+    <label>
       <span class="label-text">Email</span>
       <input id="email" type="email" placeholder="john@example.com" required>
     </label>
@@ -98,6 +102,7 @@ function saveState() {
     email: document.getElementById('email').value.trim(),
     githubUsername: document.getElementById('github').value.trim(),
     dockerHubUsername: document.getElementById('dockerhub').value.trim(),
+    githubRepo: document.getElementById('repo').value.trim(),
     registered: registered,
     approved: approved,
   };
@@ -113,6 +118,7 @@ function loadState() {
     if (data.email) document.getElementById('email').value = data.email;
     if (data.githubUsername) document.getElementById('github').value = data.githubUsername;
     if (data.dockerHubUsername) document.getElementById('dockerhub').value = data.dockerHubUsername;
+    if (data.githubRepo) document.getElementById('repo').value = data.githubRepo;
     registered = !!data.registered;
     approved = !!data.approved;
   } catch {}
@@ -124,12 +130,13 @@ function getPayload() {
     email: document.getElementById('email').value.trim(),
     githubUsername: document.getElementById('github').value.trim(),
     dockerHubUsername: document.getElementById('dockerhub').value.trim(),
+    githubRepo: document.getElementById('repo').value.trim(),
   };
 }
 
 function validate() {
   const p = getPayload();
-  return p.name && p.email && p.githubUsername && p.dockerHubUsername;
+  return p.name && p.email && p.githubUsername && p.dockerHubUsername && p.githubRepo;
 }
 
 function setResult(id, cls, msg) {
@@ -150,14 +157,14 @@ function setLoading(btnId, loading, label) {
 }
 
 function lockFields() {
-  ['name', 'github', 'dockerhub', 'email'].forEach(id => {
+  ['name', 'github', 'dockerhub', 'repo', 'email'].forEach(id => {
     document.getElementById(id).disabled = true;
   });
   document.getElementById('btnEdit').style.display = '';
 }
 
 function unlockFields() {
-  ['name', 'github', 'dockerhub', 'email'].forEach(id => {
+  ['name', 'github', 'dockerhub', 'repo', 'email'].forEach(id => {
     document.getElementById(id).disabled = false;
   });
   document.getElementById('btnEdit').style.display = 'none';

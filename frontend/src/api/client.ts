@@ -81,3 +81,12 @@ export async function approveAll(): Promise<{ approved: number }> {
   );
   return response.data;
 }
+
+export async function checkDocker(
+  id: number
+): Promise<{ passed: boolean; errorMessage: string }> {
+  const response = await api.post<{ passed: boolean; errorMessage: string }>(
+    `/students/${id}/check-docker`
+  );
+  return response.data;
+}

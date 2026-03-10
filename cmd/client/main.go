@@ -31,6 +31,7 @@ type checkRequest struct {
 	Email             string `json:"email"`
 	GithubUsername    string `json:"githubUsername"`
 	DockerHubUsername string `json:"dockerHubUsername"`
+	GithubRepo        string `json:"githubRepo"`
 }
 
 func main() {
@@ -104,8 +105,8 @@ func loadConfig() Config {
 	if cfg.ImageName == "" {
 		log.Fatal("IMAGE_NAME is required (env var or config.json)")
 	}
-	if cfg.GithubRepo == "" {
-		log.Fatal("GITHUB_REPO is required (env var or config.json)")
+	if cfg.GithubRepo != "" {
+		log.Printf("default github repo: %s (can be overridden by student input)", cfg.GithubRepo)
 	}
 
 	cfg.ServerURL = strings.TrimRight(cfg.ServerURL, "/")
@@ -158,7 +159,16 @@ func handleCheckGitHub(w http.ResponseWriter, r *http.Request, cfg Config) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	checkErr := github.CheckRepoFile(ctx, req.GithubUsername, cfg.GithubRepo, "main.go")
+	repo := strings.TrimSpace(req.GithubRepo)
+	if repo == "" {
+		repo = cfg.GithubRepo
+	}
+	if repo == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "GitHub repo name is required"})
+		return
+	}
+
+	checkErr := github.CheckRepoFile(ctx, req.GithubUsername, repo, "main.go")
 	passed := checkErr == nil
 	errMsg := ""
 	if checkErr != nil {

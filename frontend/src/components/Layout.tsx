@@ -13,7 +13,7 @@ const links = [
 
 export function Layout() {
   const navigate = useNavigate();
-  const { connected, currentEvent, dismissCurrent, registrationVersion } = useSSE();
+  const { connected, currentEvent, dismissCurrent, registrationVersion, stageVersion } = useSSE();
 
   function handleLogout() {
     clearToken();
@@ -59,7 +59,7 @@ export function Layout() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet context={{ registrationVersion }} />
+        <Outlet context={{ registrationVersion, stageVersion }} />
       </main>
 
       {currentEvent?.type === "stage_complete" && (

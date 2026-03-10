@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { listStudents } from "../api/client";
+import { checkDocker, listStudents } from "../api/client";
 import { StatusBadge } from "../components/StatusBadge";
 import type { Student } from "../types/student";
 
-export function StudentListPage() {
+export function StudentListPage({ stageVersion }: { stageVersion: number }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkingDockerIds, setCheckingDockerIds] = useState<Set<number>>(new Set());
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -24,9 +25,29 @@ export function StudentListPage() {
     }
   }, []);
 
+  const handleCheckDocker = useCallback(async (id: number) => {
+    setCheckingDockerIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await checkDocker(id);
+      if (!result.passed) {
+        setError(`Docker check failed for student ${id}: ${result.errorMessage}`);
+      }
+      await fetchStudents();
+    } catch (err) {
+      setError("Failed to run Docker check.");
+      console.error(err);
+    } finally {
+      setCheckingDockerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [fetchStudents]);
+
   useEffect(() => {
     fetchStudents();
-  }, [fetchStudents]);
+  }, [fetchStudents, stageVersion]);
 
   const summary = useMemo(() => {
     const total = students.length;
@@ -114,12 +135,22 @@ export function StudentListPage() {
                     <StatusBadge status={student.k8sStatus} />
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      className="rounded border border-slate-300 px-2 py-1 text-xs"
-                      to={`/students/${student.id}`}
-                    >
-                      Profile
-                    </Link>
+                    <div className="flex gap-1">
+                      <Link
+                        className="rounded border border-slate-300 px-2 py-1 text-xs"
+                        to={`/students/${student.id}`}
+                      >
+                        Profile
+                      </Link>
+                      <button
+                        className="rounded border border-blue-400 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        onClick={() => handleCheckDocker(student.id)}
+                        disabled={checkingDockerIds.has(student.id)}
+                        type="button"
+                      >
+                        {checkingDockerIds.has(student.id) ? "Checking..." : "Check Docker"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

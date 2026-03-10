@@ -12,6 +12,7 @@ import (
 
 	"docker-workshop-assesment-grader/internal/auth"
 	"docker-workshop-assesment-grader/internal/database"
+	"docker-workshop-assesment-grader/internal/docker"
 	"docker-workshop-assesment-grader/internal/handlers"
 	"docker-workshop-assesment-grader/internal/middleware"
 	"docker-workshop-assesment-grader/internal/sse"
@@ -36,6 +37,17 @@ func main() {
 		log.Println("WARNING: using default admin credentials (admin/admin). Set ADMIN_USER and ADMIN_PASSWORD env vars for production.")
 	}
 
+	imageName := os.Getenv("IMAGE_NAME")
+	if imageName == "" {
+		imageName = "workshop-app"
+	}
+	verifyHost := os.Getenv("DOCKER_VERIFY_HOST")
+
+	dockerRunner, err := docker.NewRunner(verifyHost)
+	if err != nil {
+		log.Printf("WARNING: Docker runner unavailable: %v (check-docker endpoint will fail)", err)
+	}
+
 	sessions := auth.NewSessionStore()
 	hub := sse.NewHub()
 
@@ -49,6 +61,7 @@ func main() {
 	approvalHandler := &handlers.ApprovalHandler{DB: db}
 	notifyHandler := &handlers.NotifyHandler{DB: db, Hub: hub}
 	eventsHandler := &handlers.EventsHandler{Hub: hub}
+	dockerCheckHandler := &handlers.DockerCheckHandler{DB: db, Hub: hub, Runner: dockerRunner, ImageName: imageName}
 
 	router := gin.Default()
 
@@ -72,6 +85,8 @@ func main() {
 
 		admin.POST("/registrations/:id/approve", approvalHandler.ApproveOne)
 		admin.POST("/registrations/approve-all", approvalHandler.ApproveAll)
+
+		admin.POST("/students/:id/check-docker", dockerCheckHandler.Check)
 	}
 
 	registerFrontendRoutes(router)
