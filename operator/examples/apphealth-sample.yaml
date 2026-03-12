@@ -1,0 +1,14 @@
+# Sample AppHealth - validates that the student deployed their app correctly
+# Student must have: Deployment + Service named "my-app" in namespace "default",
+# and the app must serve GET /info returning {"email": "..."}
+apiVersion: example.com/v1
+kind: AppHealth
+metadata:
+  name: apphealth-sample
+spec:
+  namespace: default
+  appName: my-app
+  # Uncomment to validate image:
+  # expectedImage: "myregistry.io/student-app:v1"
+  # Uncomment to report to grading API:
+  # reportURL: "https://your-grading-api.com/report"

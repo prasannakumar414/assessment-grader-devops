@@ -1,0 +1,18 @@
+apiVersion: example.com/v1
+kind: AppHealth
+metadata:
+  name: apphealth-sample
+  labels:
+    app.kubernetes.io/name: health-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  # Namespace where the student deployed their app (e.g. student-roll123)
+  namespace: default
+  # Name of Deployment and Service the student should have created
+  appName: my-app
+  # Optional: validate that the deployment uses this image
+  # expectedImage: "myregistry.io/student-app:v1"
+  # Optional: path for roll number (default /info)
+  # infoPath: /info
+  # Optional: external API to report validation results for grading
+  # reportURL: https://your-grading-api.com/report

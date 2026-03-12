@@ -1,0 +1,5 @@
+title: DevOps Workshop Guide
+description: Student guide for GitHub, Docker, and Kubernetes assessment stages.
+theme: jekyll-theme-cayman
+markdown: kramdown
+show_downloads: false

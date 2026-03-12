@@ -1,0 +1,99 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: apphealths.example.com
+spec:
+  group: example.com
+  names:
+    kind: AppHealth
+    listKind: AppHealthList
+    plural: apphealths
+    singular: apphealth
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: AppHealth is the Schema for the apphealths API (student deployment
+          validation).
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AppHealthSpec defines the desired state of AppHealth (what
+              to validate).
+            properties:
+              appName:
+                description: AppName is the name of the Deployment and Service the
+                  student should have created.
+                type: string
+              expectedImage:
+                description: 'ExpectedImage (optional): if set, validates that the
+                  deployment uses this image.'
+                type: string
+              infoPath:
+                description: 'InfoPath is the path to call for email (default:
+                  /info).'
+                type: string
+              namespace:
+                description: Namespace where the student deployed their app.
+                type: string
+              reportURL:
+                description: 'ReportURL (optional): external API to report validation
+                  results.'
+                type: string
+            required:
+            - appName
+            - namespace
+            type: object
+          status:
+            description: AppHealthStatus defines the observed state of AppHealth.
+            properties:
+              deploymentStatus:
+                description: 'DeploymentStatus: Healthy if deployment exists and has
+                  ready replicas.'
+                type: string
+              healthy:
+                description: Healthy is true when deployment, service, and image are
+                  all valid.
+                type: boolean
+              imageValid:
+                description: ImageValid is true if ExpectedImage is not set or matches
+                  the deployed image.
+                type: boolean
+              lastChecked:
+                description: LastChecked timestamp.
+                type: string
+              message:
+                description: Message for grading feedback.
+                type: string
+              email:
+                description: Email from the student app's /info endpoint.
+                type: string
+              serviceStatus:
+                description: 'ServiceStatus: Healthy if service exists and has ports.'
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
